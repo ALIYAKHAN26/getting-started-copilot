@@ -10,8 +10,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch("/activities");
       const activities = await response.json();
 
-      // Clear loading message
+      // Clear loading message / list
       activitiesList.innerHTML = "";
+
+      // Reset the select and keep the default placeholder
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -27,6 +30,72 @@ document.addEventListener("DOMContentLoaded", () => {
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
         `;
 
+        // Participants section
+        const participantsEl = document.createElement("div");
+        participantsEl.className = "participants";
+        const participantsTitle = document.createElement("p");
+        participantsTitle.className = "participants-title";
+        participantsTitle.textContent = "Participants:";
+        participantsEl.appendChild(participantsTitle);
+
+        if (Array.isArray(details.participants) && details.participants.length > 0) {
+          const ul = document.createElement("ul");
+          details.participants.forEach((p) => {
+            const li = document.createElement("li");
+            li.className = "participant-item";
+            
+            const emailSpan = document.createElement("span");
+            emailSpan.className = "participant-email";
+            emailSpan.textContent = p;
+            li.appendChild(emailSpan);
+
+            // Add delete button
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "delete-participant-btn";
+            deleteBtn.innerHTML = "✕";
+            deleteBtn.title = `Remove ${p}`;
+            deleteBtn.addEventListener("click", async (e) => {
+              e.preventDefault();
+              try {
+                const response = await fetch(
+                  `/activities/${encodeURIComponent(name)}/unregister?email=${encodeURIComponent(p)}`,
+                  { method: "DELETE" }
+                );
+
+                if (response.ok) {
+                  messageDiv.textContent = `Removed ${p} from ${name}`;
+                  messageDiv.className = "success";
+                  messageDiv.classList.remove("hidden");
+                  fetchActivities();
+                  setTimeout(() => {
+                    messageDiv.classList.add("hidden");
+                  }, 3000);
+                } else {
+                  const result = await response.json();
+                  messageDiv.textContent = result.detail || "Failed to remove participant";
+                  messageDiv.className = "error";
+                  messageDiv.classList.remove("hidden");
+                }
+              } catch (error) {
+                console.error("Error removing participant:", error);
+                messageDiv.textContent = "Failed to remove participant";
+                messageDiv.className = "error";
+                messageDiv.classList.remove("hidden");
+              }
+            });
+            li.appendChild(deleteBtn);
+
+            ul.appendChild(li);
+          });
+          participantsEl.appendChild(ul);
+        } else {
+          const none = document.createElement("p");
+          none.className = "no-participants";
+          none.textContent = "No participants yet.";
+          participantsEl.appendChild(none);
+        }
+
+        activityCard.appendChild(participantsEl);
         activitiesList.appendChild(activityCard);
 
         // Add option to select dropdown
@@ -62,6 +131,9 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+
+        // Refresh activities so participants list and availability update immediately
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
